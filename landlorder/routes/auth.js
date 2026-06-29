@@ -1,66 +1,122 @@
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// middleware/auth.js — Supabase JWT Verification
+// routes/auth.js — User Authentication + Quota
 //
-// This middleware is a "gatekeeper" placed in front of protected
-// routes. It runs BEFORE the route handler and either:
-//   ✓ Verifies the Supabase JWT → attaches req.user → calls next()
-//   ✗ Rejects invalid/missing tokens → returns 401
-//
-// Usage:
-//   const auth = require('../middleware/auth');
-//   router.post('/landlords', auth, async (req, res) => { ... });
-//   // req.user = { userId, email } inside the handler
+// Note: when using Supabase Auth, register/login are handled
+// entirely by Supabase (frontend calls Supabase REST directly).
+// These routes handle:
+//   POST /api/auth/register — custom JWT fallback (optional)
+//   POST /api/auth/login    — custom JWT fallback (optional)
+//   GET  /api/users/me/quota — server-side usage quota check
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-const { createClient } = require('@supabase/supabase-js');
+const router  = require('express').Router();
+const pool    = require('../db/pool');
+const bcrypt  = require('bcryptjs');
+const jwt     = require('jsonwebtoken');
+const auth    = require('../middleware/auth');
 
-// Supabase admin client using the SERVICE KEY (not anon key)
-// The service key bypasses Row Level Security — safe on the server
-// but NEVER expose it to the frontend
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_KEY
-);
+// ── POST /api/auth/register ───────────────────────────────────────
+// Creates a new user with a hashed password and returns a JWT.
+// Only needed if NOT using Supabase Auth.
+// If using Supabase Auth, this route can be left in as a fallback.
+router.post('/register', async (req, res) => {
+  const { email, password } = req.body;
 
-// ── auth middleware ───────────────────────────────────────────────
-// Express middleware signature: (req, res, next)
-// req  = incoming HTTP request (we read the Authorization header)
-// res  = outgoing HTTP response (we send 401 if auth fails)
-// next = function to call when auth passes (proceeds to route handler)
-module.exports = async (req, res, next) => {
+  // Server-side validation — never trust the frontend alone
+  if (!email || !password) {
+    return res.status(400).json({ error: 'Email and password are required' });
+  }
+  if (password.length < 6) {
+    return res.status(400).json({ error: 'Password must be at least 6 characters' });
+  }
+  if (!email.includes('@')) {
+    return res.status(400).json({ error: 'Invalid email address' });
+  }
+
   try {
-    // Extract token from Authorization header
-    // Header format: "Bearer eyJhbGci..."
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return res.status(401).json({ error: 'No token provided' });
-    }
+    // Hash the password with bcrypt cost factor 12
+    // Higher cost = more secure but slower. 12 is the standard.
+    // bcrypt is one-way — you can never reverse it to get the password
+    const hash = await bcrypt.hash(password, 12);
 
-    const token = authHeader.split(' ')[1];
-    // .split(' ') → ['Bearer', 'eyJhbGci...']
-    // [1]         → just the token string
+    // Insert the new user — RETURNING gives us the row without a second SELECT
+    const { rows } = await pool.query(
+      `INSERT INTO users (email, password_hash)
+       VALUES ($1, $2)
+       RETURNING id, email, created_at`,
+      [email.toLowerCase().trim(), hash]
+      // $1, $2 = parameterized — prevents SQL injection attacks
+    );
 
-    // Verify the token with Supabase
-    // This calls Supabase's /auth/v1/user endpoint to validate
-    // and decode the JWT, returning the user if valid
-    const { data: { user }, error } = await supabase.auth.getUser(token);
+    // Sign a JWT with the user's ID as the payload
+    // This token is sent back and stored by the frontend
+    const token = jwt.sign(
+      { userId: rows[0].id },      // payload: data encoded in the token
+      process.env.JWT_SECRET,      // secret: must match on every verify
+      { expiresIn: '7d' }          // expiry: token stops working after 7 days
+    );
 
-    if (error || !user) {
-      return res.status(401).json({ error: 'Invalid or expired token' });
-    }
-
-    // Attach user info to req so route handlers can use it
-    // req.user is available in any route that uses this middleware
-    req.user = {
-      userId: user.id,               // Supabase UUID
-      email:  user.email,            // user's email address
-      role:   user.user_metadata?.role || 'tenant', // custom role if set
-    };
-
-    next(); // token is valid — proceed to the route handler
+    res.status(201).json({ token, user: rows[0] });
+    // 201 = Created — a new resource was successfully created
 
   } catch (err) {
-    console.error('Auth middleware error:', err.message);
-    res.status(500).json({ error: 'Authentication service unavailable' });
+    // Postgres error code 23505 = unique constraint violation
+    // Means this email already exists in the users table
+    if (err.code === '23505') {
+      return res.status(409).json({ error: 'Email already in use' });
+      // 409 = Conflict
+    }
+    console.error('Register error:', err.message);
+    res.status(500).json({ error: 'Server error' });
   }
-};
+});
+
+
+// ── POST /api/auth/login ──────────────────────────────────────────
+// Verifies email + password and returns a JWT.
+// Only needed if NOT using Supabase Auth.
+router.post('/login', async (req, res) => {
+  const { email, password } = req.body;
+
+  if (!email || !password) {
+    return res.status(400).json({ error: 'Email and password are required' });
+  }
+
+  try {
+    // Look up the user by email
+    const { rows } = await pool.query(
+      'SELECT * FROM users WHERE email = $1',
+      [email.toLowerCase().trim()]
+    );
+
+    // Intentionally vague error — don't tell attackers if the email exists
+    if (!rows.length) {
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+
+    // bcrypt.compare hashes the submitted password and compares to stored hash
+    // Returns true/false — cannot reverse the hash
+    const valid = await bcrypt.compare(password, rows[0].password_hash);
+    if (!valid) {
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+
+    const token = jwt.sign(
+      { userId: rows[0].id },
+      process.env.JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+
+    res.json({
+      token,
+      user: { id: rows[0].id, email: rows[0].email },
+      // password_hash is NOT returned — only safe fields
+    });
+
+  } catch (err) {
+    console.error('Login error:', err.message);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+module.exports = router;
