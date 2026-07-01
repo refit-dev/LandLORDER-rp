@@ -7,6 +7,34 @@
 //   • Supabase Auth (email/password + magic link + session refresh)
 //
 // COLOR GUIDE:
+:root {
+  --color-bg: #F9FAFB;
+  --color-surface: #FFFFFF;
+  --color-text: #0F172A;
+  --color-text-muted: #6B7280;
+  --color-border: #E5E7EB;
+  --color-primary: #16A34A;
+  --color-primary-hover: #15803D;
+  --color-accent: #D97706;
+  --color-danger: #DC2626;
+  --color-nav-bg: #0F172A;
+  --color-nav-text: #D97706;
+}
+
+[data-theme="dark"] {
+  --color-bg: #0F172A;
+  --color-surface: #1E293B;
+  --color-text: #F9FAFB;
+  --color-text-muted: #94A3B8;
+  --color-border: #334155;
+  --color-primary: #16A34A;
+  --color-primary-hover: #22C55E;
+  --color-accent: #D97706;
+  --color-danger: #DC2626;
+  --color-nav-bg: #0F172A;
+  --color-nav-text: #D97706;
+}
+
 //   Amber  (#E8A045) = standard UI / amber review stars
 //   Teal   (#2DD4BF) = real backend API calls (your Node server)
 //   Green  (#3ECF8E) = Supabase Auth (external auth service)
