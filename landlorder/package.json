@@ -7,7 +7,9 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "db:migrate": "node -e \"require('./db/migrations').runMigrations().then(() => process.exit(0)).catch(e => { console.error(e); process.exit(1); })\"",
+    "db:history": "node -e \"require('./db/migrations').getMigrationHistory().then(h => console.table(h)).then(() => process.exit(0))\""
   },
   "dependencies": {
     "react": "^19.2.6",
