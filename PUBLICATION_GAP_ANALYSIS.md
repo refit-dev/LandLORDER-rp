@@ -30,6 +30,9 @@ npm create vite@latest landlorder -- --template react
 cd landlorder
 npm install
 ```
+cd landlorder
+npm install
+
 bash
 npm create vite@latest landlorder -- --template react
 
