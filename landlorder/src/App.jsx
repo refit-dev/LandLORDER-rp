@@ -9,46 +9,7 @@
 // COLOR GUIDE:
 import { useState } from "react";
 
-const tokens = {
-  light: {
-    "--color-bg": "#F9FAFB",
-    "--color-surface": "#FFFFFF",
-    "--color-surface-raised": "#F3F4F6",
-    "--color-text": "#0F172A",
-    "--color-text-muted": "#6B7280",
-    "--color-border": "#E5E7EB",
-    "--color-primary": "#16A34A",
-    "--color-primary-hover": "#15803D",
-    "--color-primary-subtle": "#DCFCE7",
-    "--color-accent": "#D97706",
-    "--color-accent-hover": "#B45309",
-    "--color-accent-subtle": "#FEF3C7",
-    "--color-danger": "#DC2626",
-    "--color-danger-hover": "#B91C1C",
-    "--color-danger-subtle": "#FEE2E2",
-    "--color-nav-bg": "#0F172A",
-    "--color-nav-text": "#D97706",
-  },
-  dark: {
-    "--color-bg": "#0F172A",
-    "--color-surface": "#1E293B",
-    "--color-surface-raised": "#273548",
-    "--color-text": "#F9FAFB",
-    "--color-text-muted": "#94A3B8",
-    "--color-border": "#334155",
-    "--color-primary": "#16A34A",
-    "--color-primary-hover": "#22C55E",
-    "--color-primary-subtle": "#14532D",
-    "--color-accent": "#D97706",
-    "--color-accent-hover": "#F59E0B",
-    "--color-accent-subtle": "#451A03",
-    "--color-danger": "#DC2626",
-    "--color-danger-hover": "#EF4444",
-    "--color-danger-subtle": "#450A0A",
-    "--color-nav-bg": "#0A1120",
-    "--color-nav-text": "#D97706",
-  },
-};
+
 
 function cssVarStyle(mode) {
   return Object.entries(tokens[mode])
