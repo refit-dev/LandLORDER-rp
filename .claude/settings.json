@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(& \"$env:ProgramFiles\\\\nodejs\\\\npm.cmd\" install)",
+      "PowerShell(& \"$env:ProgramFiles\\\\nodejs\\\\npm.cmd\" install --prefix \"C:\\\\Users\\\\joker\\\\OneDrive\\\\Documents\\\\GitHub\\\\desktop-tutorial\\\\landlorder-web\")",
+      "PowerShell(& \"$env:ProgramFiles\\\\nodejs\\\\npm.cmd\" audit --prefix \"C:\\\\Users\\\\joker\\\\OneDrive\\\\Documents\\\\GitHub\\\\desktop-tutorial\\\\landlorder-web\")",
+      "PowerShell(& \"$env:ProgramFiles\\\\nodejs\\\\npm.cmd\" audit fix --force --prefix \"C:\\\\Users\\\\joker\\\\OneDrive\\\\Documents\\\\GitHub\\\\desktop-tutorial\\\\landlorder-web\")",
+      "Bash(git mv *)",
+      "Bash(mv eslint.config.js eslint.config.mjs)"
+    ]
+  }
+}

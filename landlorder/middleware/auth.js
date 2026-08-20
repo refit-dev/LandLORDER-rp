@@ -13,6 +13,7 @@
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 const { createClient } = require('@supabase/supabase-js');
+const pool = require('../db/pool');
 
 // Supabase admin client using the SERVICE KEY (not anon key)
 // The service key bypasses Row Level Security — safe on the server
@@ -56,6 +57,22 @@ module.exports = async (req, res, next) => {
       email:  user.email,            // user's email address
       role:   user.user_metadata?.role || 'tenant', // custom role if set
     };
+
+    // Supabase owns signup/login — the frontend talks to it directly and
+    // this backend never sees a "register" request. So the first time a
+    // given Supabase user hits an authenticated route, make sure a matching
+    // row exists locally (landlords.created_by, reviews.user_id, etc. all
+    // reference this table), and give them a free-tier subscription row.
+    await pool.query(
+      `INSERT INTO users (id, email) VALUES ($1, $2)
+       ON CONFLICT (id) DO NOTHING`,
+      [user.id, user.email]
+    );
+    await pool.query(
+      `INSERT INTO subscriptions (user_id, plan_id) VALUES ($1, 'tenant')
+       ON CONFLICT (user_id) DO NOTHING`,
+      [user.id]
+    );
 
     next(); // token is valid — proceed to the route handler
 
