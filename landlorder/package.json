@@ -2,20 +2,24 @@
   "name": "landlorder",
   "private": true,
   "version": "0.0.0",
-  "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev:client": "vite",
+    "dev:server": "node index.js",
     "build": "vite build",
-    "lint": "eslint .",
     "preview": "vite preview",
-    "db:migrate": "node -e \"require('./db/migrations').runMigrations().then(() => process.exit(0)).catch(e => { console.error(e); process.exit(1); })\"",
-    "db:history": "node -e \"require('./db/migrations').getMigrationHistory().then(h => console.table(h)).then(() => process.exit(0))\""
+    "start": "node index.js"
   },
   "dependencies": {
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
     "@supabase/supabase-js": "^2.45.0",
-    "@vercel/speed-insights": "^1.0.0"
+    "@vercel/speed-insights": "^1.0.0",
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "pg": "^8.11.3",
+    "stripe": "^14.15.0",
+    "express-rate-limit": "^7.1.5"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

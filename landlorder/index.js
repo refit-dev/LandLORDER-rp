@@ -91,12 +91,12 @@ function startServer() {
   // Each route file handles a group of related endpoints.
   // The prefix here + the path in the route file = full URL.
   //
-  // /api/auth      → POST /api/auth/register, POST /api/auth/login
   // /api/landlords → GET  /api/landlords, GET /api/landlords/:id, POST /api/landlords
   // /api           → GET  /api/landlords/:id/reviews, POST /api/reviews/:id/flag
   // /api/billing   → POST /api/billing/checkout, POST /api/billing/portal, GET /api/billing/plan
   // /api/users     → GET  /api/users/me/quota
-  app.use('/api/auth',      require('./routes/auth'));
+  // Auth (register/login/magic-link) is handled entirely by Supabase —
+  // the frontend talks to Supabase directly, so there's no /api/auth route.
   app.use('/api/landlords', require('./routes/landlords'));
   app.use('/api',           require('./routes/reviews'));
   app.use('/api/billing',   require('./routes/billing').router);

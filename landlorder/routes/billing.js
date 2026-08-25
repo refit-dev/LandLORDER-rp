@@ -164,14 +164,15 @@ const webhookHandler = async (req, res) => {
           `UPDATE subscriptions SET
              plan_id                = $1,
              status                 = 'active',
-             stripe_subscription_id = $2,
-             stripe_price_id        = $3,
-             current_period_start   = $4,
-             current_period_end     = $5,
+             stripe_customer_id     = $2,
+             stripe_subscription_id = $3,
+             stripe_price_id        = $4,
+             current_period_start   = $5,
+             current_period_end     = $6,
              updated_at             = NOW()
-           WHERE user_id = $6`,
+           WHERE user_id = $7`,
           [
-            planId, subId, priceId,
+            planId, session.customer, subId, priceId,
             new Date(sub.current_period_start * 1000),
             // Stripe uses Unix timestamps — multiply by 1000 for JS Date
             new Date(sub.current_period_end   * 1000),
