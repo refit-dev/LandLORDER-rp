@@ -10,19 +10,21 @@ The repo is in a messy, mid-migration state: it contains **two divergent impleme
 
 ### 1. `landlorder/` — Express + Vite/React app (primary backend)
 A self-contained app with its own `package.json`:
-- `index.js` — Express API entry point (JWT auth, rate limiting, migrations-on-boot)
-- `routes/` — `auth.js`, `users.js`, `landlords.js` (⚠️ actual filename on disk is `landlords. js` — a literal space before `.js`; `require('./routes/landlords')` in `index.js` will fail to resolve until this is renamed), `reviews.js`, `billing.js` (Stripe checkout/portal/webhook)
-- `middleware/` — `auth.js` (JWT verification), `requirePlan.js` (plan/quota gating)
-- `db/` — `pool.js` (pg connection pool), `migrations.js` (runs pending migrations from `db/migrations/` on startup, tracked in a `migrations_log` table), `schema.sql` (core tables: `users`, `landlords`, `reviews`)
+- `index.js` — Express API entry point (Supabase-token auth, rate limiting, migrations-on-boot)
+- `routes/` — `users.js`, `landlords.js`, `reviews.js`, `billing.js` (Stripe checkout/portal/webhook). There is no `routes/auth.js` — Supabase owns signup/login directly from the frontend, so the backend has no `/api/auth` route.
+- `middleware/` — `auth.js` (verifies the Supabase-issued bearer token via `supabase.auth.getUser()`, then upserts a local `users`/`subscriptions` row on first sight of that user), `requirePlan.js` (plan/quota gating, reads the `subscriptions`/`plans` tables)
+- `services/stripe.js` — Stripe helper functions used by `routes/billing.js`
+- `db/` — `pool.js` (pg connection pool), `migrations.js` (runs pending migrations from `db/migrations/` on startup, tracked in a `migrations_log` table), `schema.sql` (core tables), `schema-additions.sql` (plans/subscriptions/etc., also captured in migration `003_billing_and_supabase_auth.sql`)
 - `src/` — the actual React frontend (`App.jsx`, `LandLordTheme.jsx`) served by Vite in dev
 - Package name is also `landlorder`; do not confuse this `package.json` with the one at the repo root.
 
-**Known-broken state — check before assuming `npm run dev` works:**
-- `landlorder/package.json` declares `"type": "module"` but `index.js` and the route/middleware files use CommonJS `require()`/`module.exports`. This throws `ReferenceError: require is not defined in ES module scope` immediately on boot.
-- `landlorder/package.json`'s `dependencies` list only frontend packages (react, supabase-js) — `express`, `cors`, `express-rate-limit`, `dotenv`, `pg`, `jsonwebtoken`, `stripe`, etc. (which `index.js` requires) are not declared there.
-- `landlorder/package.json` has no script that runs the Express server — `dev`/`build`/`preview` all invoke Vite (frontend only).
-- `landlorder/vite.config.js` has a syntax error (a bare `import.meta.env.VITE_*` statement inside the `defineConfig({...})` object literal).
-- `db/schema-additions.sql` (plans, subscriptions, usage_events, review_responses, landlord_profiles tables) referenced by `PROJECT_STRUCTURE.md` has not actually been copied into `landlorder/db/`.
+**Runnable as of 2026-08-21** — the issues below were present at one point but are fixed in the current tree; re-check `package.json`/`vite.config.js` yourself before trusting this if it's been a while:
+- No `"type": "module"` in `package.json` anymore, so `index.js`'s CommonJS `require()`/`module.exports` work fine.
+- `dependencies` now includes `express`, `cors`, `dotenv`, `pg`, `stripe`, `express-rate-limit` alongside the frontend packages.
+- `package.json` has a `"start": "node index.js"` script (also `dev:server`) that runs the Express backend; `dev:client`/`build`/`preview` remain Vite-only. [start.sh](start.sh) at repo root runs `cd landlorder && npm install && npm start` — note this starts **only the backend** (port 3001 via `PORT` in `.env`), not the Vite frontend; run `npm run dev:client` separately for that.
+- `routes/landlords.js` has no filename issue (no stray space).
+- `vite.config.js` is a clean, minimal `defineConfig`.
+- `db/schema-additions.sql` is present in `landlorder/db/`.
 
 ### 2. `landlorder-web/` — Next.js + Supabase rewrite (newer, minimal)
 A separate Next.js 16 / React 19 / TypeScript app using Supabase (`@supabase/ssr`) instead of the custom Express/JWT/Postgres stack:
@@ -45,13 +47,15 @@ The root `index.js` also has the same `require()` vs no `"type": "module"` misma
 
 There is no root-level build/lint/test tooling that spans the whole repo — each subproject is independent.
 
-**`landlorder/` (Vite/React frontend; Express backend is currently unrunnable, see above):**
+**`landlorder/` (Vite/React frontend + Express backend, run separately):**
 ```bash
 cd landlorder
 npm install
-npm run dev       # Vite dev server (frontend only, port 5173)
-npm run build     # Vite production build
-npm run preview   # Preview the production build
+npm run dev:client  # Vite dev server (frontend only, port 5173)
+npm run dev:server  # Express API (backend only, port 3001 via PORT in .env)
+npm start           # same as dev:server; what start.sh and Railway use
+npm run build       # Vite production build
+npm run preview     # Preview the production build
 ```
 No test runner or lint script is configured despite `eslint` being a devDependency (no `lint` script in `package.json`, and `eslint.config.js` exists but isn't wired to an npm script).
 
@@ -70,7 +74,7 @@ There are no automated tests anywhere in the repository currently.
 
 ## Environment variables
 
-`landlorder/` backend (see root `.env.example` for the full annotated list): `NODE_ENV`, `PORT`, `DATABASE_URL` (Postgres), `JWT_SECRET`, `FRONTEND_URL`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_*` (4 price IDs for Pro/Business monthly/annual).
+`landlorder/` backend (see `landlorder/.env.example` for the full annotated list): `NODE_ENV`, `PORT`, `DATABASE_URL` (Postgres), `SUPABASE_URL`, `SUPABASE_SERVICE_KEY` (used server-side by `middleware/auth.js` to verify frontend-issued Supabase tokens — no `JWT_SECRET` anymore), `FRONTEND_URL`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_*` (4 price IDs for Pro/Business monthly/annual). Frontend (Vite-exposed): `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_GOOGLE_PLACES_KEY`, `VITE_API_BASE`.
 
 `landlorder-web/` (see `landlorder-web/.env.local.example`): `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`.
 
